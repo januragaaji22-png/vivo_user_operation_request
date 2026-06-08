@@ -93,7 +93,7 @@ function App() {
     }
 
     // ── Kirim ke Google Apps Script ──────────────────────────
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx43F8RwoXuVZZrtwoIBZCDpwDYQg7HZapoHRW4kqeNfn3b_wqXH970-GOoxndxRkTN/exec";
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFOtHDDvBp-U75g2gSGmoM4QDiX_zWBGiC6uhHiU7A7yvYOYwjT3nQfqI0zMK1pza5UA/exec";
 
     setLoading(true);
     try {

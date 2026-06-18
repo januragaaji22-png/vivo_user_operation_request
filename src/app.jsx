@@ -39,12 +39,14 @@ const CHANNEL_CFG = {
 };
 
 const BUTTON_MAX = 25;
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFOtHDDvBp-U75g2gSGmoM4QDiX_zWBGiC6uhHiU7A7yvYOYwjT3nQfqI0zMK1pza5UA/exec";
 const emptyState = {
   airing: null, product: "", phase: "", department: "", requestBy: "",
   placement: "", headline: "", readMore: "", button: "", landing: "", dmp: [], material: null
 };
 
 function App() {
+  const [view, setView] = useState("new"); // "new" | "myRequests"
   const [data, setData] = useState(emptyState);
   const [waHeadline, setWaHeadline] = useState(false);
   const [errors, setErrors] = useState({});
@@ -91,9 +93,6 @@ function App() {
       if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
       return;
     }
-
-    // ── Kirim ke Google Apps Script ──────────────────────────
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFOtHDDvBp-U75g2gSGmoM4QDiX_zWBGiC6uhHiU7A7yvYOYwjT3nQfqI0zMK1pza5UA/exec";
 
     setLoading(true);
     try {
@@ -148,7 +147,9 @@ function App() {
   }
 
   if (submitted) return <Success data={submitted} ticket={ticket} cfg={CHANNEL_CFG[submitted.placement]}
-    onNew={() => {setSubmitted(null);setData(emptyState);setWaHeadline(false);setErrors({});}} />;
+    onNew={() => {setSubmitted(null);setData(emptyState);setWaHeadline(false);setErrors({});setView("new");}} />;
+
+  if (view === "myRequests") return <MyRequests onBack={() => setView("new")} />;
 
   const filledCount = [
     data.airing, data.product.trim(), data.phase, data.department, data.requestBy.trim(),
@@ -158,7 +159,7 @@ function App() {
 
   return (
     <div>
-      <Topbar requester={data.requestBy} />
+      <Topbar requester={data.requestBy} onMyRequests={() => setView("myRequests")} />
       <div className="page">
         <div className="page-head">
           <h1>vivo User Operation Request</h1>
@@ -341,12 +342,17 @@ function App() {
   );
 }
 
-function Topbar({ requester }) {
+function Topbar({ requester, onMyRequests }) {
   return (
     <div className="topbar">
       <span className="brand-name">User Operation Team</span>
       <span className="crumb">/ Demand requests / New</span>
       <span className="spacer"></span>
+      {onMyRequests &&
+        <button type="button" className="topbar-link" onClick={onMyRequests}>
+          <Icon name="cal" size={13} /> My requests
+        </button>
+      }
     </div>
   );
 }
@@ -409,3 +415,340 @@ function Row({ k, v }) {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+/* ===== My Requests — view + edit existing requests ===== */
+
+function MyRequests({ onBack }) {
+  const [name, setName] = useState("");
+  const [requests, setRequests] = useState(null);
+  const [loadingList, setLoadingList] = useState(false);
+  const [listError, setListError] = useState("");
+  const [selected, setSelected] = useState(null); // request object being edited
+
+  async function lookup() {
+    if (!name.trim()) return;
+    setLoadingList(true);
+    setListError("");
+    setRequests(null);
+    try {
+      const url = APPS_SCRIPT_URL + "?action=myRequests&name=" + encodeURIComponent(name.trim());
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to load requests");
+      setRequests(json.requests || []);
+    } catch (err) {
+      setListError(err.message || "Something went wrong.");
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  if (selected) {
+    return <ReviseForm request={selected} onBack={() => setSelected(null)} onDone={() => { setSelected(null); lookup(); }} />;
+  }
+
+  return (
+    <div>
+      <Topbar requester={name} />
+      <div className="page">
+        <div className="page-head">
+          <h1>My requests</h1>
+          <p>Look up requests you've submitted to view their status or make a revision.</p>
+        </div>
+
+        <section className="card">
+          <div className="card-head"><span className="card-num"><Icon name="badge" size={15} /></span><h2>Find your requests</h2></div>
+          <div className="card-body">
+            <div className="grid">
+              <div className="col-2">
+                <Field label="Your name" hint="Enter the exact name you used when submitting (Request by field).">
+                  <TextInput value={name} placeholder="e.g. Janu"
+                    onChange={setName} />
+                </Field>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <button type="button" className="btn btn-primary" onClick={lookup} disabled={loadingList || !name.trim()}
+                style={loadingList ? { opacity: .7, cursor: "not-allowed" } : {}}>
+                {loadingList ? "Searching…" : "Find my requests"}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={onBack}>Back to new request</button>
+            </div>
+          </div>
+        </section>
+
+        {listError &&
+          <div className="card">
+            <div className="card-body">
+              <div className="field-err"><Icon name="x" size={12} /> {listError}</div>
+            </div>
+          </div>
+        }
+
+        {requests && requests.length === 0 &&
+          <div className="card">
+            <div className="card-body">
+              <div className="placeholder-note">No requests found for "{name}". Check the spelling matches exactly what you entered when submitting.</div>
+            </div>
+          </div>
+        }
+
+        {requests && requests.length > 0 &&
+          <section className="card">
+            <div className="card-head"><span className="card-num">{requests.length}</span><h2>Your requests</h2></div>
+            <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {requests.map((r) => <RequestRow key={r.rowIndex} r={r} onEdit={() => setSelected(r)} />)}
+            </div>
+          </section>
+        }
+      </div>
+    </div>
+  );
+}
+
+function RequestRow({ r, onEdit }) {
+  const statusColors = {
+    DONE: "#16a34a", FAILED: "#dc2626", "IN PROGRESS": "#2563eb", PENDING: "#6b7280"
+  };
+  const sc = statusColors[r.status] || "#6b7280";
+
+  return (
+    <div className="request-row">
+      <div className="request-row-main">
+        <div className="request-row-top">
+          <span className="ticket-tag">{r.ticket}</span>
+          <span className="pill" style={{ background: "#fff", border: `1px solid ${sc}33`, color: sc }}>{r.status}</span>
+          {r.isLocked && <span className="pill" style={{ background: "#fff", border: "1px solid #d1d5db", color: "#6b7280" }}>Locked</span>}
+        </div>
+        <div className="request-row-title">{r.product} <span className="muted">· {r.placement}</span></div>
+        <div className="request-row-sub">{r.airingLabel} · {r.timeLabel}</div>
+      </div>
+      <div>
+        {r.isLocked ?
+          <button type="button" className="btn btn-ghost btn-sm" disabled style={{ opacity: .5, cursor: "not-allowed" }}>Locked</button> :
+          <button type="button" className="btn btn-primary btn-sm" onClick={onEdit}>Revise</button>
+        }
+      </div>
+    </div>
+  );
+}
+
+function ReviseForm({ request, onBack, onDone }) {
+  const [data, setData] = useState({
+    airing: parseAiringLabelToDate(request.airingLabel, request.timeLabel),
+    product: request.product || "",
+    phase: request.phase || "",
+    headline: request.headline || "",
+    readMore: request.readMore || "",
+    dmp: request.dmp ? request.dmp.split(",").map((s) => s.trim()).filter(Boolean) : [],
+    button: request.button || "",
+    landing: request.landing || "",
+    material: null, // gambar baru, kalau diisi akan replace yang lama
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const set = (k, v) => setData((d) => ({ ...d, [k]: v }));
+  const cfg = CHANNEL_CFG[request.placement];
+
+  async function submit() {
+    setLoading(true);
+    setError("");
+    try {
+      let materialBase64 = null;
+      let materialMime = null;
+      if (data.material && data.material.url) {
+        const resp = await fetch(data.material.url);
+        const blob = await resp.blob();
+        materialMime = blob.type;
+        materialBase64 = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result.split(",")[1]);
+          reader.onerror = () => rej(new Error("Failed to read file"));
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      const payload = {
+        action: "revise",
+        rowIndex: request.rowIndex,
+        airing: data.airing ? data.airing.toISOString() : null,
+        product: data.product,
+        phase: data.phase,
+        headline: data.headline,
+        readMore: data.readMore,
+        dmp: data.dmp,
+        button: data.button,
+        landing: data.landing,
+        materialName: data.material ? data.material.name : null,
+        materialBase64,
+        materialMime,
+      };
+
+      const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to update request");
+
+      setDone(true);
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div>
+        <Topbar requester={request.requestBy} />
+        <div className="success-wrap">
+          <div className="success-card">
+            <div className="success-top">
+              <div className="check-badge"><Icon name="check" size={26} stroke={2.4} /></div>
+              <h2>Request revised</h2>
+              <p>Your changes to <b>{request.ticket}</b> have been saved.</p>
+            </div>
+            <div className="success-actions">
+              <div style={{ flex: 1 }}></div>
+              <button className="btn btn-primary" onClick={onDone}>Back to my requests</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Topbar requester={request.requestBy} />
+      <div className="page">
+        <div className="page-head">
+          <h1>Revise request <span className="muted">— {request.ticket}</span></h1>
+          <p>Locked fields (placement, department, request by) can't be changed here. Contact the operations team if those need to change.</p>
+        </div>
+
+        <section className="card">
+          <div className="card-head"><span className="card-num">1</span><h2>Campaign details</h2></div>
+          <div className="card-body">
+            <div className="grid">
+              <div className="col-2">
+                <Field label="Airing date & time" required hint="When the blast should go live.">
+                  <DateTimePicker value={data.airing} onChange={(v) => set("airing", v)} />
+                </Field>
+              </div>
+              <div>
+                <Field label="Product name" required>
+                  <TextInput value={data.product} onChange={(v) => set("product", v)} placeholder="e.g. X300 Ultra" />
+                </Field>
+              </div>
+              <div>
+                <Field label="Phase" required>
+                  <Select value={data.phase} options={PHASES} dotColors={PHASE_DOTS}
+                    placeholder="Select phase" onChange={(v) => set("phase", v)} />
+                </Field>
+              </div>
+              <div>
+                <Field label="Placement" hint="Locked — contact ops to change channel.">
+                  <div className="input" style={{ background: "#f9fafb", color: "#6b7280", cursor: "not-allowed" }}>{request.placement}</div>
+                </Field>
+              </div>
+              <div>
+                <Field label="Department" hint="Locked.">
+                  <div className="input" style={{ background: "#f9fafb", color: "#6b7280", cursor: "not-allowed" }}>{request.department}</div>
+                </Field>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-head"><span className="card-num">2</span><h2>Message content</h2></div>
+          <div className="card-body">
+            <div className="grid">
+              {cfg && cfg.headline &&
+                <div className="col-2">
+                  <Field label="Headline" required={cfg.headline.required} hint={cfg.headline.hint}
+                    counter={<Counter value={[...data.headline].length} max={cfg.headline.max} />}>
+                    <LimitedText value={data.headline} max={cfg.headline.max}
+                      placeholder="Compelling one-liner…" onChange={(v) => set("headline", v)} />
+                  </Field>
+                </div>
+              }
+              <div className="col-2">
+                <Field label="Read More" hint={cfg ? cfg.readMore.hint : ""}
+                  counter={cfg && cfg.readMore.max < 100000 ? <Counter value={[...data.readMore].length} max={cfg.readMore.max} /> : null}>
+                  <LimitedText area rows={4} value={data.readMore}
+                    max={cfg && cfg.readMore.max < 100000 ? cfg.readMore.max : null}
+                    placeholder="Body copy of the blast…" onChange={(v) => set("readMore", v)} />
+                </Field>
+              </div>
+              {cfg && cfg.button &&
+                <div>
+                  <Field label="Button label" counter={<Counter value={[...data.button].length} max={BUTTON_MAX} />}>
+                    <LimitedText value={data.button} max={BUTTON_MAX} placeholder="e.g. Shop now" onChange={(v) => set("button", v)} />
+                  </Field>
+                </div>
+              }
+              <div className={cfg && cfg.button ? "" : "col-2"}>
+                <Field label="Landing page link">
+                  <PrefixInput prefix={<Icon name="link" size={13} />} value={data.landing}
+                    placeholder="vivo.com/v50" onChange={(v) => set("landing", v)} />
+                </Field>
+              </div>
+              <div className="col-2">
+                <Field label="DMP tags" hint="Type a tag and press Enter or comma.">
+                  <TagInput value={data.dmp} placeholder="Add tag…" onChange={(v) => set("dmp", v)} />
+                </Field>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-head"><span className="card-num">3</span><h2>Creative material</h2></div>
+          <div className="card-body">
+            <Field label="Replace material" hint="Leave empty to keep the current file.">
+              <FileUpload file={data.material} onFile={(f) => set("material", f)}
+                accept={["image/jpeg", "image/png"]} maxMB={cfg ? cfg.material.maxMB : 5}
+                specTitle={cfg ? cfg.material.specTitle : "Image requirements"}
+                specLines={cfg ? cfg.material.lines : []} />
+            </Field>
+            {request.materialLink &&
+              <div style={{ marginTop: 10, fontSize: 13 }}>
+                Current file: <a href={request.materialLink} target="_blank" rel="noreferrer">{request.materialLink}</a>
+              </div>
+            }
+          </div>
+        </section>
+
+        {error && <div className="card"><div className="card-body"><div className="field-err"><Icon name="x" size={12} /> {error}</div></div></div>}
+      </div>
+
+      <div className="footer-bar">
+        <div className="footer-inner">
+          <div className="status">Editing <b>{request.ticket}</b></div>
+          <div className="grow"></div>
+          <button type="button" className="btn btn-ghost" onClick={onBack}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={loading}
+            style={loading ? { opacity: .7, cursor: "not-allowed" } : {}}>
+            {loading ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Parse "Tuesday, June 9, 2026" + "10:00" back into a Date object
+function parseAiringLabelToDate(dateLabel, timeLabel) {
+  try {
+    const d = new Date(dateLabel);
+    if (isNaN(d.getTime())) return null;
+    const [hh, mm] = (timeLabel || "00:00").split(":").map(Number);
+    d.setHours(hh || 0, mm || 0, 0, 0);
+    return d;
+  } catch (e) {
+    return null;
+  }
+}

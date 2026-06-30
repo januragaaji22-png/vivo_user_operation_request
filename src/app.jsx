@@ -11,7 +11,7 @@ const CHANNEL_CFG = {
   "SMS Blast": {
     headline: { max: 100, required: true, hint: "Max 100 characters including spaces & emoji" },
     readMore: { max: 120, required: true, hint: "Max 120 characters including spaces & emoji" },
-    button: true,
+    button: true, buttonMax: 12,
     material: { maxMB: 2, specTitle: "SMS image requirements", lines: [
       "Aspect ratio 9:5 or 16:9 · width ≥ 576px",
       "Recommended: 576×320px or 1088×612px",
@@ -75,6 +75,7 @@ function App() {
       if (cfg.headline && cfg.headline.required && !data.headline.trim()) e.headline = "Headline is required.";
       if (cfg.readMore.required && !data.readMore.trim()) e.readMore = "Required.";
       if (cfg.button && !data.button.trim()) e.button = "Button label is required.";
+      if (cfg.button && data.button.trim() && cfg.buttonMax && [...data.button].length > cfg.buttonMax) e.button = `Max ${cfg.buttonMax} characters.`;
       if (!data.material) e.material = "Upload a creative material.";
     }
     if (!data.dmp.length) e.dmp = "Add at least one DMP tag.";
@@ -276,8 +277,8 @@ function App() {
                   {cfg.button &&
                     <div data-anchor="button">
                       <Field label="Button label" required error={errors.button}
-                        counter={<Counter value={[...data.button].length} max={BUTTON_MAX} />}>
-                        <LimitedText value={data.button} max={BUTTON_MAX} invalid={!!errors.button}
+                        counter={<Counter value={[...data.button].length} max={cfg.buttonMax ?? BUTTON_MAX} />}>
+                        <LimitedText value={data.button} max={cfg.buttonMax ?? BUTTON_MAX} invalid={!!errors.button}
                           placeholder="e.g. Shop now" onChange={(v) => set("button", v)} />
                       </Field>
                     </div>
@@ -685,8 +686,8 @@ function ReviseForm({ request, onBack, onDone }) {
               </div>
               {cfg && cfg.button &&
                 <div>
-                  <Field label="Button label" counter={<Counter value={[...data.button].length} max={BUTTON_MAX} />}>
-                    <LimitedText value={data.button} max={BUTTON_MAX} placeholder="e.g. Shop now" onChange={(v) => set("button", v)} />
+                  <Field label="Button label" counter={<Counter value={[...data.button].length} max={cfg.buttonMax ?? BUTTON_MAX} />}>
+                    <LimitedText value={data.button} max={cfg.buttonMax ?? BUTTON_MAX} placeholder="e.g. Shop now" onChange={(v) => set("button", v)} />
                   </Field>
                 </div>
               }

@@ -290,6 +290,19 @@
   .request-row-title .muted{font-weight:400;color:var(--text-3);}
   .request-row-sub{font-size:12px;color:var(--text-3);}
   .muted{color:var(--text-3);}
+
+  /* ---------- Multi-blast ---------- */
+  .card-actions{margin-left:auto;display:flex;gap:6px;}
+  .btn-danger:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-weak);}
+  .add-blast{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+    padding:14px;margin-bottom:14px;border:1.5px dashed var(--border-strong);border-radius:10px;
+    background:#fafbfc;color:var(--accent);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .add-blast:hover{border-color:var(--accent);background:var(--accent-weak);}
+  .ticket-list{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:13px;}
+  .ticket-list .ticket{margin-top:0;}
+  @media(max-width:680px){.card-head{flex-wrap:wrap;}}
 </style>
 </head>
 <body>
